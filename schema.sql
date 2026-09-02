@@ -1,9 +1,16 @@
 -- ============================================================================
 -- Multi-Servis - UNIFIED PostgreSQL Schema
--- Wersja: 1.0 (połączona: OWNER + Assist/Monitoring + Licencje)
+-- Wersja: 1.1
+-- Czyści starą strukturę i stawia wszystko od zera
 -- ============================================================================
 
 BEGIN;
+
+-- Wyczyść starą strukturę (stare tabele INTEGER kolidowały z UUID)
+DROP SCHEMA IF EXISTS public CASCADE;
+CREATE SCHEMA public;
+GRANT ALL ON SCHEMA public TO CURRENT_USER;
+GRANT ALL ON SCHEMA public TO public;
 
 CREATE EXTENSION IF NOT EXISTS pgcrypto;
 
