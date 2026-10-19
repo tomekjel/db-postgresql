@@ -62,13 +62,10 @@ WHERE NOT EXISTS (
   WHERE v.service_order_id = so.id
 );
 
-UPDATE service.service_orders so
-  SET current_visit_received_at = COALESCE(
-    (SELECT v.received_at FROM service.service_order_visits v
-     WHERE v.service_order_id=so.id AND v.is_current),
-    so.received_at
-  )
-WHERE so.current_visit_received_at IS NULL;
+-- Do not UPDATE old service_orders merely to populate a redundant date:
+-- its updated_at trigger would rewrite historical modification timestamps.
+-- For original visits, reports/search use COALESCE(current_visit_received_at,
+-- received_at). The new date is set only when an actual warranty return occurs.
 
 -- New orders created after this migration also need visit number 1.
 CREATE OR REPLACE FUNCTION service.track_first_visit()
