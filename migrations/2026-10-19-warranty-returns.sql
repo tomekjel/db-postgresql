@@ -218,4 +218,48 @@ FROM service.service_order_visits v
 JOIN service.service_orders o ON o.id=v.service_order_id
 WHERE v.status='COMPLETED' AND v.completed_at IS NOT NULL;
 
+
+-- Keep legacy OWNER reports aligned with the same release-date ledger.
+-- All amounts from a June issue stay in June, including after an October
+-- warranty return; a paid October return is counted separately in October.
+CREATE OR REPLACE VIEW service.v_owner_monthly_report AS
+SELECT date_trunc(
+         'month',completed_at AT TIME ZONE 'Europe/Warsaw'
+       )::DATE AS month,
+       COUNT(*) AS orders_count,
+       SUM(service_amount) AS service_total,
+       SUM(material_cost) AS material_total,
+       SUM(donor_material_value) AS donor_material_total,
+       SUM(actual_profit) AS actual_profit,
+       SUM(economic_profit) AS economic_profit
+FROM service.v_owner_completed_visit_profit
+GROUP BY 1 ORDER BY 1 DESC;
+
+CREATE OR REPLACE VIEW service.v_owner_quarterly_report AS
+SELECT date_trunc(
+         'quarter',completed_at AT TIME ZONE 'Europe/Warsaw'
+       )::DATE AS quarter,
+       COUNT(*) AS orders_count,
+       SUM(service_amount) AS service_total,
+       SUM(material_cost) AS material_total,
+       SUM(donor_material_value) AS donor_material_total,
+       SUM(actual_profit) AS actual_profit,
+       SUM(economic_profit) AS economic_profit
+FROM service.v_owner_completed_visit_profit
+GROUP BY 1 ORDER BY 1 DESC;
+
+CREATE OR REPLACE VIEW service.v_owner_yearly_report AS
+SELECT EXTRACT(
+         YEAR FROM completed_at AT TIME ZONE 'Europe/Warsaw'
+       )::INTEGER AS year,
+       COUNT(*) AS orders_count,
+       SUM(service_amount) AS service_total,
+       SUM(material_cost) AS material_total,
+       SUM(donor_material_value) AS donor_material_total,
+       SUM(actual_profit) AS actual_profit,
+       SUM(economic_profit) AS economic_profit
+FROM service.v_owner_completed_visit_profit
+GROUP BY 1 ORDER BY 1 DESC;
+
+
 COMMIT;
