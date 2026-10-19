@@ -70,6 +70,25 @@ UPDATE service.service_orders so
   )
 WHERE so.current_visit_received_at IS NULL;
 
+-- New orders created after this migration also need visit number 1.
+CREATE OR REPLACE FUNCTION service.track_first_visit()
+RETURNS TRIGGER LANGUAGE plpgsql AS $
+BEGIN
+  INSERT INTO service.service_order_visits (
+    service_order_id, visit_number, received_at, ready_at,
+    completed_at, status, is_current, is_warranty_return
+  ) VALUES (
+    NEW.id, 1, NEW.received_at, NEW.ready_at,
+    NEW.completed_at, NEW.status, TRUE, FALSE
+  );
+  RETURN NEW;
+END $;
+DROP TRIGGER IF EXISTS trg_track_first_visit
+  ON service.service_orders;
+CREATE TRIGGER trg_track_first_visit
+AFTER INSERT ON service.service_orders
+FOR EACH ROW EXECUTE FUNCTION service.track_first_visit();
+
 -- Existing reception-finance endpoint still edits owner_finances. Mirror only
 -- the CURRENT visit; earlier closed periods are immutable.
 CREATE OR REPLACE FUNCTION service.sync_current_visit_finances()
