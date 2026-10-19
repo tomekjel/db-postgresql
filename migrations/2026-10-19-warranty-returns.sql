@@ -72,7 +72,7 @@ WHERE so.current_visit_received_at IS NULL;
 
 -- New orders created after this migration also need visit number 1.
 CREATE OR REPLACE FUNCTION service.track_first_visit()
-RETURNS TRIGGER LANGUAGE plpgsql AS $
+RETURNS TRIGGER LANGUAGE plpgsql AS $$
 BEGIN
   INSERT INTO service.service_order_visits (
     service_order_id, visit_number, received_at, ready_at,
@@ -82,7 +82,7 @@ BEGIN
     NEW.completed_at, NEW.status, TRUE, FALSE
   );
   RETURN NEW;
-END $;
+END $$;
 DROP TRIGGER IF EXISTS trg_track_first_visit
   ON service.service_orders;
 CREATE TRIGGER trg_track_first_visit
@@ -129,7 +129,7 @@ FOR EACH ROW EXECUTE FUNCTION service.sync_current_visit_lifecycle();
 -- Protect previously issued financial periods from accidental legacy
 -- status PATCH. Only the atomic return function may reopen a released order.
 CREATE OR REPLACE FUNCTION service.block_unsafe_order_reopen()
-RETURNS TRIGGER LANGUAGE plpgsql AS $
+RETURNS TRIGGER LANGUAGE plpgsql AS $$
 BEGIN
   IF OLD.status = 'COMPLETED'
      AND NEW.status <> 'COMPLETED'
@@ -140,7 +140,7 @@ BEGIN
       USING ERRCODE='23514';
   END IF;
   RETURN NEW;
-END $;
+END $$;
 
 DROP TRIGGER IF EXISTS trg_block_unsafe_order_reopen
   ON service.service_orders;
