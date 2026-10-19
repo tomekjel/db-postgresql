@@ -126,6 +126,28 @@ CREATE TRIGGER trg_sync_current_visit_lifecycle
 AFTER UPDATE OF status ON service.service_orders
 FOR EACH ROW EXECUTE FUNCTION service.sync_current_visit_lifecycle();
 
+-- Protect previously issued financial periods from accidental legacy
+-- status PATCH. Only the atomic return function may reopen a released order.
+CREATE OR REPLACE FUNCTION service.block_unsafe_order_reopen()
+RETURNS TRIGGER LANGUAGE plpgsql AS $
+BEGIN
+  IF OLD.status = 'COMPLETED'
+     AND NEW.status <> 'COMPLETED'
+     AND COALESCE(current_setting('multiservis.warranty_reopen',TRUE),'')
+         <> 'authorized' THEN
+    RAISE EXCEPTION
+      'COMPLETED_ORDER_REQUIRES_WARRANTY_RETURN'
+      USING ERRCODE='23514';
+  END IF;
+  RETURN NEW;
+END $;
+
+DROP TRIGGER IF EXISTS trg_block_unsafe_order_reopen
+  ON service.service_orders;
+CREATE TRIGGER trg_block_unsafe_order_reopen
+BEFORE UPDATE OF status ON service.service_orders
+FOR EACH ROW EXECUTE FUNCTION service.block_unsafe_order_reopen();
+
 -- The backend must call this function ONLY after OWNER/STAFF authorization.
 -- A single atomic transaction locks the issued order, archives the settled
 -- period and financial figures, then creates a separate zero-cost period.
@@ -191,6 +213,7 @@ BEGIN
   ON CONFLICT (service_order_id) DO UPDATE SET
     service_amount=0,material_cost=0,donor_material_value=0;
 
+  PERFORM set_config('multiservis.warranty_reopen','authorized',TRUE);
   UPDATE service.service_orders SET
     status='IN_SERVICE', ready_at=NULL, completed_at=NULL,
     released_at=NULL, client_notified_at=NULL,
@@ -198,6 +221,7 @@ BEGIN
     is_warranty_repair=TRUE,
     updated_by=COALESCE(p_actor,updated_by)
   WHERE id=p_order_id;
+  PERFORM set_config('multiservis.warranty_reopen','off',TRUE);
 
   -- Existing trigger writes a status history entry COMPLETED -> IN_SERVICE.
   -- Original received_at, reception_number, id, QR and notes stay intact.
